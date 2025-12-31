@@ -241,8 +241,10 @@ const App: React.FC = () => {
       }
     }
 
-    // Critical: If profile fetch failed, show CompleteProfile (Recovery Mode)
-    if (profileError && !profile) {
+    // Critical: If profile fetch failed OR profile is incomplete (missing role or phone), show CompleteProfile
+    // This catches users who signed up but the database trigger failed to save their full details
+    const isProfileIncomplete = profile && (!profile.role || !profile.phone_number);
+    if ((profileError && !profile) || isProfileIncomplete) {
       return <CompleteProfile session={session} onComplete={() => fetchProfile(session.user.id, 5)} />;
     }
 
