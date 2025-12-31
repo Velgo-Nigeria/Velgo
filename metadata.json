@@ -1,0 +1,8 @@
+{
+  "name": "Velgo Nigeria",
+  "description": "A hyper-local gig marketplace PWA for Nigeria connecting workers and clients.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}
