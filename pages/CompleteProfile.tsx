@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { UserRole, ClientType } from '../types';
@@ -21,6 +22,8 @@ const CompleteProfile: React.FC<CompleteProfileProps> = ({ session, onComplete }
     setLoading(true);
     setError(null);
 
+    // UPSERT ensures that if the profile is missing (trigger failed), we create it.
+    // If it exists (trigger worked but data missing), we update it.
     const updates = {
       id: session.user.id,
       email: session.user.email,
@@ -32,15 +35,19 @@ const CompleteProfile: React.FC<CompleteProfileProps> = ({ session, onComplete }
       is_verified: false,
       task_count: 0,
       avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName.trim())}&background=008000&color=fff`,
-      updated_at: new Date(),
+      updated_at: new Date().toISOString(),
     };
 
+    // Note: We ignore "duplicate key" errors if they happen on non-primary keys, 
+    // but here ID is primary key, so Upsert handles it gracefully.
     const { error } = await supabase.from('profiles').upsert(updates);
 
     if (error) {
-      setError("Failed to save profile: " + error.message);
+      console.error("Complete Profile Error:", error);
+      setError("Failed to save profile. Please try again.");
       setLoading(false);
     } else {
+      // Force refresh of the profile in App.tsx
       onComplete();
     }
   };
@@ -89,7 +96,7 @@ const CompleteProfile: React.FC<CompleteProfileProps> = ({ session, onComplete }
 
           <button type="submit" disabled={loading} className="w-full py-5 rounded-[24px] bg-brand text-white font-black uppercase text-sm shadow-xl">{loading ? 'Saving...' : 'Enter App'}</button>
           
-          <button type="button" onClick={() => supabase.auth.signOut()} className="w-full text-center text-gray-400 font-bold text-xs uppercase mt-4">Cancel / Sign Out</button>
+          <button type="button" onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} className="w-full text-center text-gray-400 font-bold text-xs uppercase mt-4">Cancel / Sign Out</button>
         </form>
       </div>
     </div>

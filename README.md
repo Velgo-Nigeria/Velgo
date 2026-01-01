@@ -25,10 +25,10 @@ Click the **"Save to GitHub"** button at the top right of your editor to save th
 
 | Variable Name | Description |
 |---------------|-------------|
-| `VITE_SUPABASE_URL` | Supabase Project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase Anon/Public Key |
-| `VITE_PAYSTACK_PUBLIC_KEY` | Paystack Public Key |
-| `GEMINI_API_KEY` | Google Gemini API Key |
+| `VITE_SUPABASE_URL` | Your Supabase Project URL |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase Anon/Public Key |
+| `VITE_PAYSTACK_PUBLIC_KEY` | Your Paystack Public Key (starts with `pk_live_` or `pk_test_`) |
+| `GEMINI_API_KEY` | Your Google Gemini API Key |
 
 5. Click **Deploy**.
 

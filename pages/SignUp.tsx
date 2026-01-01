@@ -33,12 +33,12 @@ const SignUp: React.FC<SignUpProps> = ({ onToggle, initialRole = 'client' }) => 
     // 1. Frontend Validation
     if (password !== confirmPassword) { setError("Passwords do not match."); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    if (!phone.trim() || phone.length < 10) { setError("Please enter a valid phone number."); return; }
+    
+    const cleanPhone = phone.replace(/\D/g, ''); 
+    if (cleanPhone.length < 10) { setError("Please enter a valid phone number."); return; }
 
     setLoading(true);
 
-    // 2. Prepare Full Metadata
-    // We send all fields so the database trigger can populate the profile correctly immediately.
     const metaData = {
       full_name: fullName.trim(),
       phone_number: phone.trim(),
@@ -57,36 +57,26 @@ const SignUp: React.FC<SignUpProps> = ({ onToggle, initialRole = 'client' }) => 
       });
 
       if (authError) {
-        if (authError.message.includes("unique constraint") || authError.message.includes("already registered")) {
-            setError("This email address is already in use. Please log in.");
-        } else if (authError.message.includes("Database error")) {
-            // Friendly message for the specific trigger error
-            setError("System is upgrading. Please wait 2 minutes or contact support if this persists.");
+        console.error("Signup Error:", authError);
+        // REMOVED: The generic "System maintenance" masking. Now showing real errors.
+        if (authError.message.includes("unique") || authError.message.includes("already registered")) {
+            setError("Email already in use. Try logging in.");
+        } else if (authError.message.includes("Password")) {
+            setError("Password is too weak or common.");
         } else {
+            // Show the actual error message from Supabase so we know what's wrong
             setError(authError.message);
         }
       } else {
         if (data.session) {
-            // 3. Auto-logged in? Double check profile update.
-            // Even though we sent metadata, we do a manual update to ensure everything is perfect.
-            const { error: updateError } = await supabase.from('profiles').update({
-                role: role,
-                phone_number: phone.trim(),
-                client_type: role === 'client' ? clientType : 'personal',
-                avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName.trim())}&background=008000&color=fff`,
-                updated_at: new Date().toISOString()
-            }).eq('id', data.session.user.id);
-            
-            if (updateError) {
-               console.error("Manual profile sync check:", updateError);
-            }
+             // Success
         } else if (data.user && !data.session) {
-            alert("Account created successfully! Please check your email to confirm your account.");
+            alert("Account created! Please check your email to verify your account.");
             onToggle();
         }
       }
     } catch (err: any) {
-      setError("Network error. Please check your internet connection.");
+      setError("Network connection failed. Please retry.");
     } finally {
       setLoading(false);
     }
@@ -115,7 +105,7 @@ const SignUp: React.FC<SignUpProps> = ({ onToggle, initialRole = 'client' }) => 
              <button type="button" onClick={() => setRole('worker')} className={`py-3 rounded-xl text-[10px] font-black uppercase transition-all ${role === 'worker' ? 'bg-white text-brand shadow-sm scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>Earn Money</button>
           </div>
 
-          {/* Client Type (Only for Clients) */}
+          {/* Client Type */}
           {role === 'client' && (
              <div className="flex justify-center gap-6 py-1 animate-fadeIn">
                  <label className="flex items-center gap-2 cursor-pointer opacity-80 hover:opacity-100">
