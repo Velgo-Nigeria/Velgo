@@ -149,7 +149,7 @@ const Activity: React.FC<ActivityProps> = ({ profile, onOpenChat, onUpgrade, onR
                      : bookings.filter(b => ['completed', 'cancelled', 'declined'].includes(b.status)).concat(tasks.filter(t => t.status === 'completed'));
 
   return (
-    <div className="p-4 space-y-6 pb-24">
+    <div className="bg-white min-h-screen">
       {selectedPayout && (
           <div className="fixed inset-0 bg-white z-[100] p-6 flex flex-col safe-bottom overflow-y-auto animate-fadeIn">
               <h2 className="text-3xl font-black text-gray-900 uppercase text-center mt-10">Payment Required</h2>
@@ -198,56 +198,61 @@ const Activity: React.FC<ActivityProps> = ({ profile, onOpenChat, onUpgrade, onR
       {ratingBooking && <RatingModal />}
       {showUpgradeModal && <div className="fixed inset-0 bg-black/80 z-[120] flex items-center justify-center p-6 backdrop-blur-sm animate-fadeIn"><div className="bg-white rounded-[32px] p-8 w-full max-w-sm text-center shadow-2xl space-y-4"><h3 className="text-xl font-black text-gray-900">Limit Reached</h3><button onClick={onUpgrade} className="w-full bg-brand text-white py-4 rounded-2xl font-black uppercase">Upgrade</button><button onClick={() => setShowUpgradeModal(false)} className="text-gray-400 text-xs font-bold uppercase">Cancel</button></div></div>}
       
-      <div className="flex justify-between items-end">
-        <h1 className="text-2xl font-black text-gray-900">Gigs</h1>
+      <div className="px-6 pt-10 pb-4 border-b border-gray-50 flex justify-between items-end sticky top-0 bg-white z-10">
+        <h1 className="text-2xl font-black text-gray-900">My Gigs</h1>
         {showInvoiceGenerator && <button onClick={generateInvoice} disabled={generatingPdf} className="bg-gray-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><i className="fa-solid fa-file-invoice"></i> Invoice</button>}
       </div>
 
-      <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
-        {['requests', 'ongoing', 'history'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === tab ? 'bg-white text-brand shadow-md' : 'text-gray-400'}`}>{tab}</button>
-        ))}
+      <div className="px-6 mt-4">
+        <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
+            {['requests', 'ongoing', 'history'].map(tab => (
+                <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === tab ? 'bg-white text-brand shadow-md' : 'text-gray-400'}`}>{tab}</button>
+            ))}
+        </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="p-6 pb-24">
         {loading ? <div className="text-center py-20 animate-pulse">Syncing...</div> :
-          currentItems.length > 0 ? currentItems.map(item => {
-            const isTaskObject = !!item.title && !item.task_id; 
-            const isApplication = !!item.task_id;
-            const partnerName = isTaskObject ? (item.profiles?.full_name || 'Unassigned') : (item.profiles?.full_name || 'User');
-            let price = isTaskObject ? item.budget : (item.quote_price || item.profiles?.starting_price || 0);
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {currentItems.length > 0 ? currentItems.map(item => {
+                const isTaskObject = !!item.title && !item.task_id; 
+                const isApplication = !!item.task_id;
+                const partnerName = isTaskObject ? (item.profiles?.full_name || 'Unassigned') : (item.profiles?.full_name || 'User');
+                let price = isTaskObject ? item.budget : (item.quote_price || item.profiles?.starting_price || 0);
 
-            return (
-              <div key={item.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4 relative overflow-hidden animate-fadeIn">
-                <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-black uppercase ${isTaskObject ? 'bg-gray-900 text-white' : 'bg-brand/10 text-brand'}`}>{isTaskObject ? 'Your Post' : (isApplication ? 'Application' : 'Direct Request')}</div>
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl border bg-gray-50 flex items-center justify-center text-gray-300 font-bold text-xl">{partnerName[0]}</div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-gray-800 truncate">{isTaskObject ? item.title : (item.posted_tasks?.title || 'Direct Hire')}</h3>
-                    <div className="flex flex-col"><span className="text-xs font-bold text-gray-500">{partnerName}</span>{price > 0 && <span className="text-xs font-black text-brand">₦{price.toLocaleString()}</span>}</div>
-                  </div>
+                return (
+                <div key={item.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4 relative overflow-hidden animate-fadeIn h-full">
+                    <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-black uppercase ${isTaskObject ? 'bg-gray-900 text-white' : 'bg-brand/10 text-brand'}`}>{isTaskObject ? 'Your Post' : (isApplication ? 'Application' : 'Direct Request')}</div>
+                    <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl border bg-gray-50 flex items-center justify-center text-gray-300 font-bold text-xl">{partnerName[0]}</div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-black text-gray-800 truncate">{isTaskObject ? item.title : (item.posted_tasks?.title || 'Direct Hire')}</h3>
+                        <div className="flex flex-col"><span className="text-xs font-bold text-gray-500">{partnerName}</span>{price > 0 && <span className="text-xs font-black text-brand">₦{price.toLocaleString()}</span>}</div>
+                    </div>
+                    </div>
+
+                    {!isTaskObject && item.status === 'pending' && (
+                        <div className="flex gap-2 w-full">
+                            <button onClick={() => updateBookingStatus(item, 'cancelled')} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black text-xs">DECLINE</button>
+                            {profile?.role === 'worker' && !isApplication && <button onClick={() => updateBookingStatus(item, 'accepted')} className="flex-1 bg-brand text-white py-3 rounded-xl font-black text-xs">ACCEPT</button>}
+                            {profile?.role === 'client' && <button onClick={() => updateBookingStatus(item, 'accepted')} className="flex-1 bg-brand text-white py-3 rounded-xl font-black text-xs">ACCEPT</button>}
+                            {profile?.role === 'worker' && isApplication && <div className="flex-1 bg-gray-50 py-3 rounded-xl text-center text-[10px] text-gray-400 font-bold uppercase">Pending...</div>}
+                        </div>
+                    )}
+                    {!isTaskObject && ['accepted'].includes(item.status) && (
+                        <div className="flex gap-2">
+                            <button onClick={() => onOpenChat(profile?.role === 'client' ? item.worker_id : item.client_id)} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black text-xs">CHAT</button>
+                            {profile?.role === 'client' && <button onClick={() => updateBookingStatus(item, 'completed')} className="flex-1 border-2 border-brand text-brand py-3 rounded-xl font-black text-xs uppercase">COMPLETE</button>}
+                        </div>
+                    )}
+                    {activeTab === 'history' && !isTaskObject && item.status === 'completed' && (!item.rating && !item.client_rating) && (
+                        <button onClick={() => setRatingBooking(item)} className="w-full bg-brand text-white py-3 rounded-xl font-black text-xs uppercase shadow-md animate-pulse">Rate User</button>
+                    )}
                 </div>
-
-                {!isTaskObject && item.status === 'pending' && (
-                    <div className="flex gap-2 w-full">
-                        <button onClick={() => updateBookingStatus(item, 'cancelled')} className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-black text-xs">DECLINE</button>
-                        {profile?.role === 'worker' && !isApplication && <button onClick={() => updateBookingStatus(item, 'accepted')} className="flex-1 bg-brand text-white py-3 rounded-xl font-black text-xs">ACCEPT</button>}
-                        {profile?.role === 'client' && <button onClick={() => updateBookingStatus(item, 'accepted')} className="flex-1 bg-brand text-white py-3 rounded-xl font-black text-xs">ACCEPT</button>}
-                        {profile?.role === 'worker' && isApplication && <div className="flex-1 bg-gray-50 py-3 rounded-xl text-center text-[10px] text-gray-400 font-bold uppercase">Pending...</div>}
-                    </div>
-                )}
-                {!isTaskObject && ['accepted'].includes(item.status) && (
-                    <div className="flex gap-2">
-                         <button onClick={() => onOpenChat(profile?.role === 'client' ? item.worker_id : item.client_id)} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black text-xs">CHAT</button>
-                         {profile?.role === 'client' && <button onClick={() => updateBookingStatus(item, 'completed')} className="flex-1 border-2 border-brand text-brand py-3 rounded-xl font-black text-xs uppercase">COMPLETE</button>}
-                    </div>
-                )}
-                {activeTab === 'history' && !isTaskObject && item.status === 'completed' && (!item.rating && !item.client_rating) && (
-                     <button onClick={() => setRatingBooking(item)} className="w-full bg-brand text-white py-3 rounded-xl font-black text-xs uppercase shadow-md animate-pulse">Rate User</button>
-                )}
-              </div>
-            );
-          }) : <div className="text-center py-20 flex flex-col items-center"><i className="fa-solid fa-folder-open text-4xl text-gray-200 mb-4"></i><p className="text-gray-400 text-sm font-bold">No {activeTab} found.</p></div>
+                );
+            }) : <div className="col-span-full text-center py-20 flex flex-col items-center"><i className="fa-solid fa-folder-open text-4xl text-gray-200 mb-4"></i><p className="text-gray-400 text-sm font-bold">No {activeTab} found.</p></div>
+            }
+          </div>
         }
       </div>
     </div>

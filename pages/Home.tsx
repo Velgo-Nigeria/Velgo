@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase, safeFetch } from '../lib/supabaseClient';
 import { Profile, PostedTask } from '../types';
@@ -39,11 +40,10 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
   const [workerRatings, setWorkerRatings] = useState<Record<string, {avg: number, count: number}>>({});
 
   useEffect(() => {
-      // Try to get GPS for distance sorting
       if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
               (pos) => { setUserLat(pos.coords.latitude); setUserLng(pos.coords.longitude); },
-              () => {} // Fail silently
+              () => {} 
           );
       }
   }, []);
@@ -62,7 +62,6 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
         const { data } = await safeFetch<Profile[]>(async () => await query.limit(50));
         
         let workers = data || [];
-        // Sort by distance if GPS available
         if (userLat && userLng) {
             workers = workers.sort((a, b) => {
                 const distA = a.latitude ? Math.hypot(a.latitude - userLat, a.longitude! - userLng) : 999;
@@ -72,7 +71,6 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
         }
         setItems(workers);
 
-        // Ratings Logic
         const workerIds = workers.map(w => w.id);
         if (workerIds.length > 0) {
             const { data: ratingData } = await supabase.from('bookings').select('worker_id, rating').in('worker_id', workerIds).not('rating', 'is', null);
@@ -94,9 +92,6 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
         if (category !== 'All') query = query.eq('category', category);
         const { data } = await safeFetch<PostedTask[]>(async () => await query);
         let tasks = data || [];
-        
-        // Distance Sort for Tasks (if tasks have coords, though currently tasks use text location)
-        // Future enhancement: Tasks should inherit lat/long from client or input.
         
         setItems(tasks);
 
@@ -234,7 +229,8 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
           </div>
       )}
       
-      <header className="px-6 pt-10 pb-4 sticky top-0 bg-white/90 backdrop-blur-md z-30 space-y-4 border-b border-gray-50">
+      {/* Header - MD: Hidden because we use Sidebar */}
+      <header className="md:hidden px-6 pt-10 pb-4 sticky top-0 bg-white/90 backdrop-blur-md z-30 space-y-4 border-b border-gray-50">
         <div className="flex justify-between items-center">
             <VelgoLogo className="h-10" />
             <div className="flex items-center gap-3">
@@ -244,25 +240,41 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
                 </div>
             </div>
         </div>
+      </header>
+      
+      {/* Desktop Header Equivalent */}
+      <div className="hidden md:flex justify-between items-center px-6 py-6 border-b border-gray-50">
+          <h1 className="text-2xl font-black text-gray-900">Marketplace</h1>
+          <div className="flex items-center gap-3">
+             <button onClick={onShowGuide} className="bg-gray-50 text-gray-600 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2"><i className="fa-solid fa-question"></i> Help Guide</button>
+             {profile?.role === 'client' && (
+                <button onClick={onPostTask} className="bg-gray-900 text-white px-5 py-3 rounded-xl text-xs font-black uppercase shadow-lg hover:bg-black transition-colors">
+                    <i className="fa-solid fa-plus mr-2"></i> Post Job
+                </button>
+             )}
+          </div>
+      </div>
 
+      <div className="px-6 space-y-6 mt-6 pb-24">
         {profile?.role === 'worker' && (
-             <div className="bg-gray-100 p-1 rounded-xl flex text-[10px] font-black uppercase tracking-widest">
+             <div className="bg-gray-100 p-1 rounded-xl flex text-[10px] font-black uppercase tracking-widest max-w-sm">
                  <button onClick={() => setWorkerViewMode('jobs')} className={`flex-1 py-2.5 rounded-lg transition-all ${workerViewMode === 'jobs' ? 'bg-white text-brand shadow-sm' : 'text-gray-400'}`}>View Jobs</button>
                  <button onClick={() => setWorkerViewMode('market')} className={`flex-1 py-2.5 rounded-lg transition-all ${workerViewMode === 'market' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'}`}>Competitors</button>
              </div>
         )}
-      </header>
 
-      <div className="px-6 space-y-6 mt-6 pb-24">
-        <div className="bg-gray-50 p-4 rounded-[24px] border border-gray-100">
-             <h2 className="text-lg font-black text-gray-800">Hello, {profile?.full_name.split(' ')[0]}</h2>
-             <p className="text-sm text-gray-500 font-medium">
-                {profile?.role === 'client' ? 'Find experts for your needs.' : 'Browse jobs in your area.'}
-             </p>
+        <div className="bg-gray-50 p-4 rounded-[24px] border border-gray-100 flex items-center justify-between">
+             <div>
+                 <h2 className="text-lg font-black text-gray-800">Hello, {profile?.full_name.split(' ')[0]}</h2>
+                 <p className="text-sm text-gray-500 font-medium">
+                    {profile?.role === 'client' ? 'Find experts for your needs.' : 'Browse jobs in your area.'}
+                 </p>
+             </div>
         </div>
 
+        {/* Mobile Post Button - Hidden Desktop */}
         {profile?.role === 'client' && (
-          <div onClick={onPostTask} className="bg-gray-900 text-white p-5 rounded-[28px] shadow-xl flex items-center justify-between active:scale-95 transition-all cursor-pointer">
+          <div onClick={onPostTask} className="md:hidden bg-gray-900 text-white p-5 rounded-[28px] shadow-xl flex items-center justify-between active:scale-95 transition-all cursor-pointer">
             <div><p className="text-[10px] font-black uppercase tracking-widest text-brand">Action</p><h2 className="text-xl font-black">Post a Job</h2></div>
             <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"><i className="fa-solid fa-plus text-lg"></i></div>
           </div>
@@ -279,7 +291,7 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
             {selectedState !== 'All Nigeria' && <button onClick={() => { setSelectedState('All Nigeria'); setSelectedLGA(''); }} className="text-[9px] font-bold text-red-500 uppercase">Clear</button>}
           </div>
           
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
             <button onClick={() => { setSelectedState('All Nigeria'); setSelectedLGA(''); }} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${selectedState === 'All Nigeria' ? 'bg-gray-900 text-white border-gray-900 shadow-lg' : 'bg-white text-gray-500 border-gray-100'}`}>All Nigeria</button>
             {NIGERIA_STATES.map(n => (
                 <button key={n} onClick={() => { setSelectedState(n); setSelectedLGA(''); }} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${selectedState === n ? 'bg-gray-900 text-white border-gray-900 shadow-lg' : 'bg-white text-gray-500 border-gray-100'}`}>{n}</button>
@@ -287,7 +299,7 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
           </div>
 
           {selectedState !== 'All Nigeria' && NIGERIA_LGAS[selectedState] && (
-               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6 animate-fadeIn">
+               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0 animate-fadeIn">
                    {NIGERIA_LGAS[selectedState].map(lga => (
                        <button key={lga} onClick={() => setSelectedLGA(lga === selectedLGA ? '' : lga)} className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-[9px] font-bold border transition-all ${selectedLGA === lga ? 'bg-brand text-white border-brand' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>{lga}</button>
                    ))}
@@ -296,20 +308,21 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
         </div>
 
         <div className="space-y-2">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
             {['All', ...Object.keys(CATEGORY_MAP)].map(cat => (<button key={cat} onClick={() => setCategory(cat)} className={`whitespace-nowrap px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${category === cat ? 'bg-brand text-white shadow-xl shadow-brand/20' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>{cat}</button>))}
           </div>
         </div>
 
-        <div className="space-y-4 pt-2">
+        {/* RESPONSIVE GRID LAYOUT: 1 col mobile, 2 cols tablet, 3 cols desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
           {loading ? [1, 2, 3].map(i => <div key={i} className="h-28 bg-gray-50 rounded-[32px] animate-pulse" />) : 
-            filteredItems.length === 0 ? <div className="text-center py-10 text-gray-400 font-medium text-sm">No results found in this area.</div> :
+            filteredItems.length === 0 ? <div className="col-span-full text-center py-10 text-gray-400 font-medium text-sm">No results found in this area.</div> :
             (profile?.role === 'client' || workerViewMode === 'market') ? (
               filteredItems.map(item => {
                   const worker = item as Profile;
                   const stats = workerRatings[worker.id];
                   return (
-                    <div key={worker.id} onClick={() => handleWorkerClick(worker.id)} className={`p-5 bg-white rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-5 transition-all group active:scale-[0.98] cursor-pointer relative overflow-hidden`}>
+                    <div key={worker.id} onClick={() => handleWorkerClick(worker.id)} className={`p-5 bg-white rounded-[32px] border border-gray-100 shadow-sm flex items-center gap-5 transition-all hover:shadow-md group active:scale-[0.98] cursor-pointer relative overflow-hidden h-full`}>
                         {worker.is_verified && <div className="absolute top-0 right-0 bg-blue-50 text-blue-600 px-3 py-1 rounded-bl-xl text-[9px] font-black uppercase"><i className="fa-solid fa-check-circle mr-1"></i>Verified</div>}
                         <div className="w-16 h-16 rounded-2xl overflow-hidden border bg-gray-50 flex-shrink-0"><img src={worker.avatar_url || `https://ui-avatars.com/api/?name=${worker.full_name}&background=f3f4f6&color=008000`} className="w-full h-full object-cover" /></div>
                         <div className="flex-1 min-w-0">
@@ -328,14 +341,14 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
                    const hasApplied = myApplications.has(task.id);
                    
                    return (
-                     <div key={task.id} onClick={() => onViewTask(task.id)} className="p-6 bg-white rounded-[32px] border border-gray-100 shadow-sm space-y-4 active:scale-[0.98] transition-transform cursor-pointer">
+                     <div key={task.id} onClick={() => onViewTask(task.id)} className="p-6 bg-white rounded-[32px] border border-gray-100 shadow-sm space-y-4 hover:shadow-md active:scale-[0.98] transition-all cursor-pointer h-full flex flex-col">
                         <div className="flex justify-between items-start">
-                            <div><span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${task.urgency === 'emergency' ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>{task.urgency}</span><h3 className="text-lg font-black text-gray-900 mt-2 leading-tight">{task.title}</h3></div>
-                            <div className="text-right"><p className="text-brand font-black text-lg">₦{task.budget.toLocaleString()}</p><p className="text-[9px] text-gray-400 font-bold uppercase">{task.category}</p></div>
+                            <div><span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${task.urgency === 'emergency' ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>{task.urgency}</span><h3 className="text-lg font-black text-gray-900 mt-2 leading-tight line-clamp-1">{task.title}</h3></div>
+                            <div className="text-right shrink-0 ml-2"><p className="text-brand font-black text-lg">₦{task.budget.toLocaleString()}</p><p className="text-[9px] text-gray-400 font-bold uppercase">{task.category}</p></div>
                         </div>
                         
-                        <div className="relative">
-                            <p className="text-sm text-gray-600 font-medium line-clamp-2">{translations[task.id] || task.description}</p>
+                        <div className="relative flex-1">
+                            <p className="text-sm text-gray-600 font-medium line-clamp-3">{translations[task.id] || task.description}</p>
                             {!translations[task.id] && (
                                 <button onClick={(e) => translateToPidgin(e, task.description, task.id)} className="text-[9px] font-black text-brand uppercase mt-1 flex items-center gap-1">
                                     <i className={`fa-solid fa-language ${translatingId === task.id ? 'animate-spin' : ''}`}></i> Translate to Pidgin
@@ -345,11 +358,11 @@ const Home: React.FC<{ profile: Profile | null, onViewWorker: (id: string) => vo
 
                         <p className="text-[10px] text-gray-400 font-bold uppercase"><i className="fa-solid fa-location-dot mr-1"></i> {task.location}</p>
                         
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-auto">
                             <div className="flex items-center gap-2">
                                 <img src={task.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${task.profiles?.full_name || 'Client'}`} className="w-8 h-8 rounded-full border border-white shadow-sm" />
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-gray-600">{task.profiles?.full_name || 'Client'}</span>
+                                    <span className="text-[10px] font-bold text-gray-600 line-clamp-1">{task.profiles?.full_name || 'Client'}</span>
                                     {rating ? <div className="flex items-center gap-0.5 text-yellow-400 text-[9px]"><span className="font-black text-gray-400 mr-1">{rating}</span><i className="fa-solid fa-star"></i></div> : <span className="text-[9px] text-gray-300 font-bold">New Client</span>}
                                 </div>
                             </div>

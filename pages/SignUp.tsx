@@ -37,11 +37,13 @@ const SignUp: React.FC<SignUpProps> = ({ onToggle, initialRole = 'client' }) => 
 
     setLoading(true);
 
-    // 2. Prepare Minimal Metadata
-    // We only send full_name to prevent database triggers from crashing on complex fields like 'client_type'
-    // The rest of the data is saved manually below or via CompleteProfile page.
+    // 2. Prepare Full Metadata
+    // We send all fields so the database trigger can populate the profile correctly immediately.
     const metaData = {
       full_name: fullName.trim(),
+      phone_number: phone.trim(),
+      role: role,
+      client_type: role === 'client' ? clientType : 'personal',
     };
 
     try {
@@ -59,24 +61,24 @@ const SignUp: React.FC<SignUpProps> = ({ onToggle, initialRole = 'client' }) => 
             setError("This email address is already in use. Please log in.");
         } else if (authError.message.includes("Database error")) {
             // Friendly message for the specific trigger error
-            setError("System is updating. Please try again or use the 'Complete Profile' screen after login.");
+            setError("System is upgrading. Please wait 2 minutes or contact support if this persists.");
         } else {
             setError(authError.message);
         }
       } else {
         if (data.session) {
-            // 3. Auto-logged in? Manually update the profile details now.
-            // This ensures role/phone are saved even if the trigger skipped them.
+            // 3. Auto-logged in? Double check profile update.
+            // Even though we sent metadata, we do a manual update to ensure everything is perfect.
             const { error: updateError } = await supabase.from('profiles').update({
                 role: role,
                 phone_number: phone.trim(),
                 client_type: role === 'client' ? clientType : 'personal',
-                avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName.trim())}&background=008000&color=fff`
+                avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName.trim())}&background=008000&color=fff`,
+                updated_at: new Date().toISOString()
             }).eq('id', data.session.user.id);
             
             if (updateError) {
-               console.error("Manual profile update failed", updateError);
-               // We don't block here; App.tsx will detect missing role and show CompleteProfile
+               console.error("Manual profile sync check:", updateError);
             }
         } else if (data.user && !data.session) {
             alert("Account created successfully! Please check your email to confirm your account.");

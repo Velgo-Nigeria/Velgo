@@ -20,7 +20,7 @@ import CompleteProfile from './pages/CompleteProfile';
 import Legal from './pages/Legal';
 import Safety from './pages/Safety';
 import AdminDashboard from './pages/AdminDashboard';
-import { ShieldIcon } from './components/Brand';
+import { ShieldIcon, VelgoLogo } from './components/Brand';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { InstallPWA } from './components/InstallPWA';
 import { NotificationToast } from './components/NotificationToast';
@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
-  const [systemError, setSystemError] = useState<string | null>(null); // New state for critical errors
+  const [systemError, setSystemError] = useState<string | null>(null);
   const [view, setView] = useState<any>('landing');
   const [viewData, setViewData] = useState<any>(null);
   
@@ -68,11 +68,9 @@ const App: React.FC = () => {
   }, [profile?.theme_mode]);
 
   const fetchProfile = useCallback(async (uid: string, retries = 3) => {
-    // We request the profile. If it returns error or no data, we retry a few times.
     const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
     
     if (error) {
-      // Check for critical RLS recursion or system errors
       if (error.message && (error.message.includes('recursion') || error.message.includes('policy'))) {
          console.error("Critical Policy Error:", error);
          setSystemError("Database Policy Error. Please run the provided SQL script in Supabase.");
@@ -86,7 +84,6 @@ const App: React.FC = () => {
       setProfileError(false);
       setSystemError(null);
       
-      // Show guide if new user (less than 5 mins old)
       const created = new Date(data.created_at || Date.now()).getTime();
       if (Date.now() - created < 5 * 60 * 1000) {
           if (!localStorage.getItem('guideShown')) {
@@ -96,11 +93,9 @@ const App: React.FC = () => {
       }
     } else {
       if (retries > 0) {
-        // Linear backoff: 500ms, 1000ms, 1500ms...
         await new Promise(r => setTimeout(r, 500));
         fetchProfile(uid, retries - 1);
       } else {
-        // Retries exhausted, profile likely missing (Ghost User)
         setProfileError(true);
       }
     }
@@ -123,7 +118,6 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.warn("Network error during session init:", err);
-        // We do not set systemError here to allow user to try logging in manually
       } finally {
         setLoading(false);
       }
@@ -135,16 +129,11 @@ const App: React.FC = () => {
       setSession(currentSession);
       
       if (event === 'PASSWORD_RECOVERY') {
-         // CRITICAL: Handle the incoming link from email
          setView('reset-password');
       }
       else if (currentSession) {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-           // On Sign In, try strictly 3 times then fail to CompleteProfile
            fetchProfile(currentSession.user.id, 3);
-           
-           // CRITICAL FIX: Only redirect to home if currently on an auth page.
-           // This prevents re-auth (Settings page) from kicking user back to home.
            if (viewRef.current === 'landing' || viewRef.current === 'login' || viewRef.current === 'signup') {
               setView('home');
            }
@@ -153,7 +142,6 @@ const App: React.FC = () => {
         setProfile(null);
         setProfileError(false);
         setSystemError(null);
-        // If we are not in reset-password flow, go to landing
         if (viewRef.current !== 'reset-password') {
             setView('landing');
         }
@@ -163,7 +151,6 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, [fetchProfile]); 
 
-  // Real-time Notifications Listener
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -200,7 +187,6 @@ const App: React.FC = () => {
     </div>
   );
 
-  // Show System Error Screen if RLS fails
   if (systemError) {
       return (
         <div className="h-screen w-screen flex flex-col items-center justify-center bg-white p-8 text-center">
@@ -241,8 +227,6 @@ const App: React.FC = () => {
       }
     }
 
-    // Critical: If profile fetch failed OR profile is incomplete (missing role or phone), show CompleteProfile
-    // This catches users who signed up but the database trigger failed to save their full details
     const isProfileIncomplete = profile && (!profile.role || !profile.phone_number);
     if ((profileError && !profile) || isProfileIncomplete) {
       return <CompleteProfile session={session} onComplete={() => fetchProfile(session.user.id, 5)} />;
@@ -268,19 +252,56 @@ const App: React.FC = () => {
     }
   };
 
+  const SidebarItem: React.FC<{ icon: string; label: string; active: boolean; onClick: () => void }> = ({ icon, label, active, onClick }) => (
+     <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all group ${active ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+         <i className={`fa-solid ${icon} text-lg ${active ? 'text-white' : 'text-gray-400 group-hover:text-brand'}`}></i>
+         <span className={`font-bold text-sm ${active ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>{label}</span>
+     </button>
+  );
+
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-white dark:bg-gray-900 max-w-md mx-auto relative shadow-2xl flex flex-col transition-colors duration-200">
-        <div className="flex-1">
-          {renderContent()}
-        </div>
+      <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-200 flex flex-col md:flex-row overflow-x-hidden">
+        
+        {/* DESKTOP SIDEBAR */}
+        {session && profile && view !== 'admin' && view !== 'chat' && view !== 'reset-password' && (
+            <aside className="hidden md:flex flex-col w-72 border-r border-gray-100 dark:border-gray-800 h-screen sticky top-0 p-6 bg-white dark:bg-gray-900 z-50">
+                <div className="mb-10 pl-2">
+                    <VelgoLogo />
+                </div>
+                <nav className="space-y-3 flex-1">
+                    <SidebarItem icon="fa-house-chimney" label="Marketplace" active={['home', 'worker-detail', 'task-detail', 'post-task'].includes(view)} onClick={() => setView('home')} />
+                    <SidebarItem icon="fa-bolt-lightning" label="My Gigs" active={view === 'activity'} onClick={() => setView('activity')} />
+                    <SidebarItem icon="fa-comments" label="Messages" active={['messages', 'chat'].includes(view)} onClick={() => setView('messages')} />
+                    <SidebarItem icon="fa-user-ninja" label="Profile & Settings" active={['profile', 'subscription', 'settings', 'legal', 'safety'].includes(view)} onClick={() => setView('profile')} />
+                </nav>
+                <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center gap-3">
+                         <img src={profile?.avatar_url} className="w-10 h-10 rounded-full bg-gray-100 object-cover" />
+                         <div className="flex-1 min-w-0">
+                             <p className="text-sm font-bold truncate dark:text-white">{profile?.full_name}</p>
+                             <p className="text-xs text-gray-500 truncate capitalize">{profile?.role}</p>
+                         </div>
+                    </div>
+                </div>
+            </aside>
+        )}
+
+        {/* MAIN CONTENT AREA */}
+        <main className={`flex-1 w-full relative ${session ? 'max-w-md mx-auto md:max-w-none md:mx-0' : 'w-full'}`}>
+          {/* Constrain content width on Desktop to prevent stretching */}
+          <div className={`${session ? 'md:max-w-6xl md:mx-auto md:p-6 md:pb-12' : 'w-full'}`}>
+             {renderContent()}
+          </div>
+        </main>
         
         {toast && <NotificationToast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
         {showGuide && <UserGuide onClose={() => setShowGuide(false)} />}
         <InstallPWA />
 
+        {/* MOBILE BOTTOM NAV */}
         {session && profile && view !== 'admin' && view !== 'chat' && view !== 'reset-password' && (
-          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-gray-800 flex justify-around items-center h-20 safe-bottom z-50 transition-colors duration-200 shadow-lg">
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-gray-800 flex justify-around items-center h-20 safe-bottom z-50 transition-colors duration-200 shadow-lg">
             <button onClick={() => setView('home')} className={`flex flex-col items-center flex-1 transition-all active:scale-90 ${['home', 'worker-detail', 'task-detail', 'post-task'].includes(view) ? 'text-brand' : 'text-gray-300 dark:text-gray-600'}`}>
               <i className="fa-solid fa-house-chimney text-xl"></i>
               <span className="text-[9px] font-black uppercase mt-1">Market</span>
