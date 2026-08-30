@@ -1,0 +1,59 @@
+name: Supabase Keepalive Ping
+
+on:
+  schedule:
+    # Runs at 06:00 UTC every 3 days (well within Supabase 7-day inactivity limit)
+    - cron: '0 6 */3 * *'
+  workflow_dispatch:
+    # Allows manual trigger anytime from the Actions tab in GitHub
+
+jobs:
+  ping-supabase:
+    name: Ping Supabase Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "❌ Error: SUPABASE_URL or SUPABASE_ANON_KEY repository secret is missing."
+            echo "Please add SUPABASE_URL and SUPABASE_ANON_KEY in your GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          # Strip trailing slash if present
+          CLEAN_URL="${SUPABASE_URL%/}"
+          TARGET_URL="${CLEAN_URL}/rest/v1/profiles?select=id&limit=1"
+
+          echo "📡 Sending keepalive ping to Supabase: ${TARGET_URL}"
+          
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X GET "$TARGET_URL" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            --connect-timeout 10 \
+            --max-time 20)
+
+          echo "HTTP Response Status Code: ${HTTP_STATUS}"
+
+          # HTTP 200 (OK) or 206 (Partial Content) confirms successful active DB transaction
+          if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 206 ]; then
+            echo "✅ Supabase keepalive ping successful! Inactivity pause timer reset."
+            exit 0
+          else
+            echo "⚠️ Unexpected response code: ${HTTP_STATUS}. Retrying with root health check..."
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X GET "${CLEAN_URL}/rest/v1/" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              --connect-timeout 10 \
+              --max-time 20)
+            
+            echo "Root Health Status Code: ${HEALTH_STATUS}"
+            if [ "$HEALTH_STATUS" -ge 200 ] && [ "$HEALTH_STATUS" -lt 400 ]; then
+              echo "✅ Supabase ping successful on fallback route!"
+              exit 0
+            else
+              echo "❌ Supabase ping failed with status code ${HEALTH_STATUS}"
+              exit 1
+            fi
+          fi
