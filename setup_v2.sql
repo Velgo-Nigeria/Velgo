@@ -358,17 +358,35 @@ FOR EACH ROW EXECUTE PROCEDURE calculate_profile_score();
 -- ==========================================
 -- TOKENS MANAGEMENT
 -- ==========================================
-CREATE OR REPLACE FUNCTION add_tokens(p_user_id UUID, p_amount INTEGER)
+CREATE OR REPLACE FUNCTION public.add_tokens(p_user_id UUID, p_amount INTEGER)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  v_is_authorized BOOLEAN;
 BEGIN
-  UPDATE profiles
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'Security Violation: Token amount must be a positive integer.';
+  END IF;
+
+  v_is_authorized := current_user IN ('postgres', 'supabase_admin')
+                     OR (auth.jwt() ->> 'role' = 'service_role')
+                     OR public.is_admin();
+
+  IF NOT v_is_authorized THEN
+    RAISE EXCEPTION 'Security Violation: Direct client-side token minting is forbidden.';
+  END IF;
+
+  UPDATE public.profiles
   SET tokens = COALESCE(tokens, 0) + p_amount
   WHERE id = p_user_id;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.add_tokens(UUID, INTEGER) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.add_tokens(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_tokens(UUID, INTEGER) TO service_role;
 
 -- ==========================================
 -- APP REVIEWS
@@ -424,4 +442,77 @@ CREATE POLICY "Public can view location settings" ON public.location_settings FO
 
 DROP POLICY IF EXISTS "Anyone can join location waitlist" ON public.location_waitlist;
 CREATE POLICY "Anyone can join location waitlist" ON public.location_waitlist FOR INSERT WITH CHECK (true);
+
+-- ====================================================================
+-- PROFILE SECURITY: PREVENT PRIVILEGE ESCALATION
+-- ====================================================================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+    AND (role = 'admin' OR email IN ('velgonigeria.uni@gmail.com', 'admin.velgo@gmail.com'))
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.protect_profile_critical_columns()
+RETURNS trigger AS $$
+BEGIN
+  IF current_user IN ('postgres', 'supabase_admin')
+     OR (auth.jwt() ->> 'role' = 'service_role')
+     OR public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  -- 1. Prevent role escalation
+  IF NEW.role = 'admin' AND (OLD.role IS NULL OR OLD.role != 'admin') THEN
+    RAISE EXCEPTION 'Security Violation: You do not have permission to assign an admin role.';
+  END IF;
+
+  IF OLD.role IS NOT NULL AND NEW.role IS DISTINCT FROM OLD.role THEN
+    RAISE EXCEPTION 'Security Violation: Account role cannot be altered.';
+  END IF;
+
+  -- 2. Prevent moderation tampering
+  IF NEW.is_blocked IS DISTINCT FROM OLD.is_blocked OR NEW.block_reason IS DISTINCT FROM OLD.block_reason THEN
+    RAISE EXCEPTION 'Security Violation: Moderation status cannot be self-modified.';
+  END IF;
+
+  -- 3. Prevent direct token manipulation
+  IF NEW.tokens IS DISTINCT FROM OLD.tokens THEN
+    RAISE EXCEPTION 'Security Violation: Token balances cannot be directly altered.';
+  END IF;
+
+  -- 4. Prevent reputation & counters forgery
+  IF NEW.rating IS DISTINCT FROM OLD.rating
+     OR NEW.rating_count IS DISTINCT FROM OLD.rating_count
+     OR NEW.completed_jobs_count IS DISTINCT FROM OLD.completed_jobs_count
+     OR NEW.job_count IS DISTINCT FROM OLD.job_count
+     OR NEW.task_count IS DISTINCT FROM OLD.task_count THEN
+    RAISE EXCEPTION 'Security Violation: Reputation metrics cannot be directly modified.';
+  END IF;
+
+  -- 5. Prevent verification badge & tier forgery
+  IF NEW.is_verified = true AND (OLD.is_verified IS DISTINCT FROM true) THEN
+    RAISE EXCEPTION 'Security Violation: Official verification status can only be granted by Velgo Compliance or verified token pack purchase.';
+  END IF;
+
+  IF NEW.subscription_tier IS DISTINCT FROM OLD.subscription_tier THEN
+    RAISE EXCEPTION 'Security Violation: Tier updates must be processed through the verified payment gateway.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_protect_profile_critical_columns ON public.profiles;
+CREATE TRIGGER trg_protect_profile_critical_columns
+BEFORE UPDATE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_profile_critical_columns();
 
